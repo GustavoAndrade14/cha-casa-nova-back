@@ -1,6 +1,7 @@
+// produtos.controller.js
 import { supabase } from '../config/supabase.js';
 
-// Listar todos os produtos
+// ==================== FUNÇÕES GET ====================
 export const listarProdutos = async (req, res) => {
     try {
         const { data: produtos, error } = await supabase
@@ -8,9 +9,7 @@ export const listarProdutos = async (req, res) => {
             .select('*')
             .order('id', { ascending: true });
 
-        if (error) {
-            throw error;
-        }
+        if (error) throw error;
 
         res.status(200).json({
             success: true,
@@ -27,7 +26,6 @@ export const listarProdutos = async (req, res) => {
     }
 };
 
-// Listar apenas produtos disponíveis (unavailable = false)
 export const listarProdutosDisponiveis = async (req, res) => {
     try {
         const { data: produtos, error } = await supabase
@@ -36,9 +34,7 @@ export const listarProdutosDisponiveis = async (req, res) => {
             .eq('unavailable', false)
             .order('id', { ascending: true });
 
-        if (error) {
-            throw error;
-        }
+        if (error) throw error;
 
         res.status(200).json({
             success: true,
@@ -55,7 +51,6 @@ export const listarProdutosDisponiveis = async (req, res) => {
     }
 };
 
-// Listar apenas produtos indisponíveis (unavailable = true)
 export const listarProdutosIndisponiveis = async (req, res) => {
     try {
         const { data: produtos, error } = await supabase
@@ -64,9 +59,7 @@ export const listarProdutosIndisponiveis = async (req, res) => {
             .eq('unavailable', true)
             .order('id', { ascending: true });
 
-        if (error) {
-            throw error;
-        }
+        if (error) throw error;
 
         res.status(200).json({
             success: true,
@@ -83,7 +76,6 @@ export const listarProdutosIndisponiveis = async (req, res) => {
     }
 };
 
-// Buscar produto por ID
 export const buscarProdutoPorId = async (req, res) => {
     try {
         const { id } = req.params;
@@ -118,24 +110,56 @@ export const buscarProdutoPorId = async (req, res) => {
     }
 };
 
-// Atualizar status unavailable
-export const atualizarStatusProduto = async (req, res) => {
+// ==================== FUNÇÕES POST/PUT/PATCH ====================
+export const criarProduto = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { unavailable } = req.body;
+        const { name, price, image, link, pix_key, unavailable } = req.body;
 
-        // Validar se unavailable é booleano
-        if (typeof unavailable !== 'boolean') {
+        if (!name || !price || !link || !pix_key) {
             return res.status(400).json({
                 success: false,
-                message: 'O campo "unavailable" deve ser um valor booleano (true ou false)'
+                message: 'Campos obrigatórios: name, price, link, pix_key'
             });
         }
 
-        // Buscar produto atual primeiro
+        const { data: novoProduto, error } = await supabase
+            .from('produtos')
+            .insert([{
+                name,
+                price,
+                image: image || null,
+                link,
+                pix_key,
+                unavailable: unavailable || false
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(201).json({
+            success: true,
+            message: 'Produto criado com sucesso',
+            data: novoProduto
+        });
+    } catch (error) {
+        console.error('Erro ao criar produto:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao criar produto',
+            error: error.message
+        });
+    }
+};
+
+export const atualizarProduto = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, price, image, link, pix_key, unavailable } = req.body;
+
         const { data: produtoExistente, error: findError } = await supabase
             .from('produtos')
-            .select('*')
+            .select('id')
             .eq('id', id)
             .single();
 
@@ -149,17 +173,58 @@ export const atualizarStatusProduto = async (req, res) => {
             throw findError;
         }
 
-        // Atualizar o status
+        const updates = {};
+        if (name !== undefined) updates.name = name;
+        if (price !== undefined) updates.price = price;
+        if (image !== undefined) updates.image = image;
+        if (link !== undefined) updates.link = link;
+        if (pix_key !== undefined) updates.pix_key = pix_key;
+        if (unavailable !== undefined) updates.unavailable = unavailable;
+
         const { data: produtoAtualizado, error: updateError } = await supabase
             .from('produtos')
-            .update({ unavailable: unavailable })
+            .update(updates)
             .eq('id', id)
             .select()
             .single();
 
-        if (updateError) {
-            throw updateError;
+        if (updateError) throw updateError;
+
+        res.status(200).json({
+            success: true,
+            message: 'Produto atualizado com sucesso',
+            data: produtoAtualizado
+        });
+    } catch (error) {
+        console.error('Erro ao atualizar produto:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao atualizar produto',
+            error: error.message
+        });
+    }
+};
+
+export const atualizarStatusProduto = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { unavailable } = req.body;
+
+        if (typeof unavailable !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'O campo "unavailable" deve ser um valor booleano'
+            });
         }
+
+        const { data: produtoAtualizado, error: updateError } = await supabase
+            .from('produtos')
+            .update({ unavailable })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (updateError) throw updateError;
 
         res.status(200).json({
             success: true,
@@ -176,12 +241,10 @@ export const atualizarStatusProduto = async (req, res) => {
     }
 };
 
-// Alternar status (toggle) - muda de true para false ou vice-versa
 export const alternarStatusProduto = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Buscar produto atual
         const { data: produtoExistente, error: findError } = await supabase
             .from('produtos')
             .select('unavailable')
@@ -198,7 +261,6 @@ export const alternarStatusProduto = async (req, res) => {
             throw findError;
         }
 
-        // Alternar o status
         const novoStatus = !produtoExistente.unavailable;
 
         const { data: produtoAtualizado, error: updateError } = await supabase
@@ -208,9 +270,7 @@ export const alternarStatusProduto = async (req, res) => {
             .select()
             .single();
 
-        if (updateError) {
-            throw updateError;
-        }
+        if (updateError) throw updateError;
 
         res.status(200).json({
             success: true,
@@ -227,7 +287,6 @@ export const alternarStatusProduto = async (req, res) => {
     }
 };
 
-// Atualizar múltiplos produtos (batch update)
 export const atualizarMultiplosProdutos = async (req, res) => {
     try {
         const { updates } = req.body;
@@ -279,155 +338,46 @@ export const atualizarMultiplosProdutos = async (req, res) => {
             error: error.message
         });
     }
+};
 
-    export const criarProduto = async (req, res) => {
-        try {
-            const { name, price, image, link, pix_key, unavailable } = req.body;
+// ==================== FUNÇÕES DELETE ====================
+export const deletarProduto = async (req, res) => {
+    try {
+        const { id } = req.params;
 
-            // Validações básicas
-            if (!name || !price || !link || !pix_key) {
-                return res.status(400).json({
+        const { data: produtoExistente, error: findError } = await supabase
+            .from('produtos')
+            .select('id')
+            .eq('id', id)
+            .single();
+
+        if (findError) {
+            if (findError.code === 'PGRST116') {
+                return res.status(404).json({
                     success: false,
-                    message: 'Campos obrigatórios: name, price, link, pix_key'
+                    message: 'Produto não encontrado'
                 });
             }
-
-            // Inserir novo produto
-            const { data: novoProduto, error } = await supabase
-                .from('produtos')
-                .insert([
-                    {
-                        name,
-                        price,
-                        image: image || null,
-                        link,
-                        pix_key,
-                        unavailable: unavailable || false
-                    }
-                ])
-                .select()
-                .single();
-
-            if (error) {
-                throw error;
-            }
-
-            res.status(201).json({
-                success: true,
-                message: 'Produto criado com sucesso',
-                data: novoProduto
-            });
-        } catch (error) {
-            console.error('Erro ao criar produto:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Erro ao criar produto',
-                error: error.message
-            });
+            throw findError;
         }
-    };
 
-    export const deletarProduto = async (req, res) => {
-        try {
-            const { id } = req.params;
+        const { error: deleteError } = await supabase
+            .from('produtos')
+            .delete()
+            .eq('id', id);
 
-            // Verificar se produto existe
-            const { data: produtoExistente, error: findError } = await supabase
-                .from('produtos')
-                .select('id')
-                .eq('id', id)
-                .single();
+        if (deleteError) throw deleteError;
 
-            if (findError) {
-                if (findError.code === 'PGRST116') {
-                    return res.status(404).json({
-                        success: false,
-                        message: 'Produto não encontrado'
-                    });
-                }
-                throw findError;
-            }
-
-            // Deletar produto
-            const { error: deleteError } = await supabase
-                .from('produtos')
-                .delete()
-                .eq('id', id);
-
-            if (deleteError) {
-                throw deleteError;
-            }
-
-            res.status(200).json({
-                success: true,
-                message: 'Produto deletado com sucesso'
-            });
-        } catch (error) {
-            console.error('Erro ao deletar produto:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Erro ao deletar produto',
-                error: error.message
-            });
-        }
-    };
-
-    export const atualizarProduto = async (req, res) => {
-        try {
-            const { id } = req.params;
-            const { name, price, image, link, pix_key, unavailable } = req.body;
-
-            // Verificar se produto existe
-            const { data: produtoExistente, error: findError } = await supabase
-                .from('produtos')
-                .select('id')
-                .eq('id', id)
-                .single();
-
-            if (findError) {
-                if (findError.code === 'PGRST116') {
-                    return res.status(404).json({
-                        success: false,
-                        message: 'Produto não encontrado'
-                    });
-                }
-                throw findError;
-            }
-
-            // Preparar dados para atualização (apenas campos enviados)
-            const updates = {};
-            if (name !== undefined) updates.name = name;
-            if (price !== undefined) updates.price = price;
-            if (image !== undefined) updates.image = image;
-            if (link !== undefined) updates.link = link;
-            if (pix_key !== undefined) updates.pix_key = pix_key;
-            if (unavailable !== undefined) updates.unavailable = unavailable;
-
-            // Atualizar produto
-            const { data: produtoAtualizado, error: updateError } = await supabase
-                .from('produtos')
-                .update(updates)
-                .eq('id', id)
-                .select()
-                .single();
-
-            if (updateError) {
-                throw updateError;
-            }
-
-            res.status(200).json({
-                success: true,
-                message: 'Produto atualizado com sucesso',
-                data: produtoAtualizado
-            });
-        } catch (error) {
-            console.error('Erro ao atualizar produto:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Erro ao atualizar produto',
-                error: error.message
-            });
-        }
-    };
-
+        res.status(200).json({
+            success: true,
+            message: 'Produto deletado com sucesso'
+        });
+    } catch (error) {
+        console.error('Erro ao deletar produto:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao deletar produto',
+            error: error.message
+        });
+    }
 };
