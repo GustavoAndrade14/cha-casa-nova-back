@@ -279,4 +279,155 @@ export const atualizarMultiplosProdutos = async (req, res) => {
             error: error.message
         });
     }
+
+    export const criarProduto = async (req, res) => {
+        try {
+            const { name, price, image, link, pix_key, unavailable } = req.body;
+
+            // Validações básicas
+            if (!name || !price || !link || !pix_key) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Campos obrigatórios: name, price, link, pix_key'
+                });
+            }
+
+            // Inserir novo produto
+            const { data: novoProduto, error } = await supabase
+                .from('produtos')
+                .insert([
+                    {
+                        name,
+                        price,
+                        image: image || null,
+                        link,
+                        pix_key,
+                        unavailable: unavailable || false
+                    }
+                ])
+                .select()
+                .single();
+
+            if (error) {
+                throw error;
+            }
+
+            res.status(201).json({
+                success: true,
+                message: 'Produto criado com sucesso',
+                data: novoProduto
+            });
+        } catch (error) {
+            console.error('Erro ao criar produto:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Erro ao criar produto',
+                error: error.message
+            });
+        }
+    };
+
+    export const deletarProduto = async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            // Verificar se produto existe
+            const { data: produtoExistente, error: findError } = await supabase
+                .from('produtos')
+                .select('id')
+                .eq('id', id)
+                .single();
+
+            if (findError) {
+                if (findError.code === 'PGRST116') {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Produto não encontrado'
+                    });
+                }
+                throw findError;
+            }
+
+            // Deletar produto
+            const { error: deleteError } = await supabase
+                .from('produtos')
+                .delete()
+                .eq('id', id);
+
+            if (deleteError) {
+                throw deleteError;
+            }
+
+            res.status(200).json({
+                success: true,
+                message: 'Produto deletado com sucesso'
+            });
+        } catch (error) {
+            console.error('Erro ao deletar produto:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Erro ao deletar produto',
+                error: error.message
+            });
+        }
+    };
+
+    export const atualizarProduto = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { name, price, image, link, pix_key, unavailable } = req.body;
+
+            // Verificar se produto existe
+            const { data: produtoExistente, error: findError } = await supabase
+                .from('produtos')
+                .select('id')
+                .eq('id', id)
+                .single();
+
+            if (findError) {
+                if (findError.code === 'PGRST116') {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Produto não encontrado'
+                    });
+                }
+                throw findError;
+            }
+
+            // Preparar dados para atualização (apenas campos enviados)
+            const updates = {};
+            if (name !== undefined) updates.name = name;
+            if (price !== undefined) updates.price = price;
+            if (image !== undefined) updates.image = image;
+            if (link !== undefined) updates.link = link;
+            if (pix_key !== undefined) updates.pix_key = pix_key;
+            if (unavailable !== undefined) updates.unavailable = unavailable;
+
+            // Atualizar produto
+            const { data: produtoAtualizado, error: updateError } = await supabase
+                .from('produtos')
+                .update(updates)
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (updateError) {
+                throw updateError;
+            }
+
+            res.status(200).json({
+                success: true,
+                message: 'Produto atualizado com sucesso',
+                data: produtoAtualizado
+            });
+        } catch (error) {
+            console.error('Erro ao atualizar produto:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Erro ao atualizar produto',
+                error: error.message
+            });
+        }
+    };
+
 };
